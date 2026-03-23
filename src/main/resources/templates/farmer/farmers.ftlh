@@ -65,7 +65,6 @@
                         <#assign baseParams = "&searchName=${searchName!''}&searchRank=${searchRank!''}">
 
                         <th class="ps-4 py-3" style="width: 15%;">
-                            <!-- 三元运算：如果当前就是ID升序，下一次点击就变为降序，否则默认升序 -->
                             <#assign nextDirId = (sortColumn == 'id' && sortDir == 'asc')?then('desc', 'asc')>
                             <a href="/farmers?page=1&sort=id&dir=${nextDirId}${baseParams}" class="text-dark text-decoration-none fw-bold d-inline-flex align-items-center user-select-none" style="font-size: 1.1rem;">
                                 数据ID
@@ -129,7 +128,18 @@
                                 </div>
                             </td>
                             <td class="py-3">
-                                <span class="text-muted fw-medium fs-5"><i class="bi bi-geo-alt me-1 text-primary opacity-75"></i>${item.prefecture}${item.city}</span>
+                                <#--
+                                    【核心修复点】: 明确指定 ('UTF-8') 字符集，解决 FreeMarker 引擎不知道用什么编码格式导致的 500 报错
+                                -->
+                                <#assign fullAddress = item.prefecture + item.city + (item.addressLine!'')>
+                                <a href="https://www.google.com/maps/search/?api=1&query=${fullAddress?url('UTF-8')}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="text-decoration-none text-muted fw-medium fs-5"
+                                   title="クリックしてGoogleマップで開く">
+                                    <i class="bi bi-geo-alt me-1 text-primary opacity-75"></i>
+                                    <span style="border-bottom: 1px dashed #0d6efd; padding-bottom: 2px;">${item.prefecture}${item.city}</span>
+                                </a>
                             </td>
                             <td class="text-center py-3">
                                 <#if item.rank == 'A'>
@@ -142,7 +152,6 @@
                             </td>
                             <td class="text-center pe-4 py-3">
                                 <div class="d-flex justify-content-center gap-3">
-                                    <!-- 修改按钮：跳转到独立的表单页，且将当前所有的检索、分页和排序状态塞入 URL -->
                                     <a href="/farmers/edit/${item.id}?page=${currentPage!'1'}&sort=${sortColumn!'id'}&dir=${sortDir!'desc'}${baseParams}" class="btn btn-outline-primary border-0 px-3 py-2" title="修改"><i class="bi bi-pencil-square fs-4"></i></a>
                                     <form action="/farmers/delete/${item.id}" method="post" class="m-0" onsubmit="return confirm('确定要物理删除该农家吗？此操作不可逆！');">
                                         <button type="submit" class="btn btn-outline-danger border-0 px-3 py-2" title="删除"><i class="bi bi-trash3 fs-4"></i></button>
@@ -163,26 +172,21 @@
                 </table>
             </div>
 
-            <!-- 底部大尺寸分页控件 (Pagination) -->
+            <!-- 底部大尺寸分页控件 -->
             <#if totalPages?? && totalPages &gt; 1>
                 <div class="d-flex justify-content-center py-4 bg-light bg-opacity-50 border-top">
                     <nav aria-label="Page navigation">
                         <ul class="pagination pagination-lg m-0 shadow-sm">
-                            <!-- 上一页 -->
                             <li class="page-item <#if currentPage == 1>disabled</#if>">
                                 <a class="page-link px-4 fw-bold" href="/farmers?page=${currentPage - 1}&sort=${sortColumn!'id'}&dir=${sortDir!'desc'}${baseParams}">
                                     <i class="bi bi-chevron-left me-1"></i> 上一页
                                 </a>
                             </li>
-
-                            <!-- 动态页码 -->
                             <#list 1..totalPages as p>
                                 <li class="page-item <#if p == currentPage>active</#if>">
                                     <a class="page-link px-4 fw-bold" href="/farmers?page=${p}&sort=${sortColumn!'id'}&dir=${sortDir!'desc'}${baseParams}">${p}</a>
                                 </li>
                             </#list>
-
-                            <!-- 下一页 -->
                             <li class="page-item <#if currentPage == totalPages>disabled</#if>">
                                 <a class="page-link px-4 fw-bold" href="/farmers?page=${currentPage + 1}&sort=${sortColumn!'id'}&dir=${sortDir!'desc'}${baseParams}">
                                     下一页 <i class="bi bi-chevron-right ms-1"></i>
