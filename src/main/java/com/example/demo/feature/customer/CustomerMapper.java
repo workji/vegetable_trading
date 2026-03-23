@@ -38,4 +38,13 @@ public interface CustomerMapper {
 
     @Delete("DELETE FROM m_customers WHERE id=#{id}")
     void deleteById(Integer id);
+
+    // --- 追加：分页与排序专属查询 ---
+    // 注意：${} 用于直接拼接列名和ASC/DESC，存在SQL注入风险，必须在Service层严格拦截！
+    @Select("SELECT * FROM m_customers ORDER BY ${sortColumn} ${sortDir} LIMIT #{offset}, #{size}")
+    List<Customer> findPage(@Param("sortColumn") String sortColumn, @Param("sortDir") String sortDir,
+                            @Param("offset") int offset, @Param("size") int size);
+
+    @Select("SELECT COUNT(id) FROM m_customers")
+    long countAll();
 }

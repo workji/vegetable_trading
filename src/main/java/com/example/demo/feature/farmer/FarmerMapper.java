@@ -43,4 +43,22 @@ public interface FarmerMapper {
 
     @Delete("DELETE FROM m_farmers WHERE id=#{id}")
     void deleteById(Integer id);
+
+    // 追加：带有动态搜索、排序、分页的终极查询
+    @Select("<script>" +
+            "SELECT * FROM m_farmers WHERE 1=1 " +
+            "<if test='searchName != null and searchName != \"\"'> AND name LIKE CONCAT('%', #{searchName}, '%') </if>" +
+            "<if test='searchRank != null and searchRank != \"\"'> AND `rank` = #{searchRank} </if>" +
+            "ORDER BY ${sortColumn} ${sortDir} LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<Farmer> findPage(@Param("searchName") String searchName, @Param("searchRank") String searchRank,
+                          @Param("sortColumn") String sortColumn, @Param("sortDir") String sortDir,
+                          @Param("offset") int offset, @Param("size") int size);
+
+    @Select("<script>" +
+            "SELECT COUNT(id) FROM m_farmers WHERE 1=1 " +
+            "<if test='searchName != null and searchName != \"\"'> AND name LIKE CONCAT('%', #{searchName}, '%') </if>" +
+            "<if test='searchRank != null and searchRank != \"\"'> AND `rank` = #{searchRank} </if>" +
+            "</script>")
+    long countAll(@Param("searchName") String searchName, @Param("searchRank") String searchRank);
 }

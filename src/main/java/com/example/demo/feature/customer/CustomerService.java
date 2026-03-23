@@ -5,7 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 顾客业务逻辑层 (Service)
@@ -17,6 +21,8 @@ import java.util.List;
 public class CustomerService {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerService.class);
+    // --- 追加：防止 SQL 注入的安全白名单 ---
+    private static final List<String> VALID_COLUMNS = Arrays.asList("id", "name", "prefecture");
 
     // final 声明确保不可变，通过构造器完成注入
     private final CustomerMapper customerMapper;
@@ -27,6 +33,32 @@ public class CustomerService {
 
     public List<Customer> getAllCustomers() {
         return customerMapper.findAll();
+    }
+
+    public Map<String, Object> getCustomersPage(int page, int size, String sortColumn, String sortDir) {
+        // 1. 绝对安全防线：拦截所有非法的列名和排序关键字
+        if (!VALID_COLUMNS.contains(sortColumn)) sortColumn = "id";
+        if (!"asc".equalsIgnoreCase(sortDir) && !"desc".equalsIgnoreCase(sortDir)) sortDir = "desc";
+        if (page < 1) page = 1;
+
+        // 2. 计算物理分页参数
+        int offset = (page - 1) * size;
+        List<Customer> list = customerMapper.findPage(sortColumn, sortDir, offset, size);
+        long total = customerMapper.countAll();
+
+        // 3. 计算总页数 (向上取整)
+        int totalPages = (int) Math.ceil((double) total / size);
+        if (totalPages == 0) totalPages = 1;
+
+        // 4. 打包返回给前端的上下文
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);               // 当前页的数据列表
+        result.put("total", total);             // 总记录数
+        result.put("currentPage", page);        // 当前页码
+        result.put("totalPages", totalPages);   // 总页数
+        result.put("sortColumn", sortColumn);   // 当前排序的列
+        result.put("sortDir", sortDir);         // 当前排序的方向 (asc/desc)
+        return result;
     }
 
     /**

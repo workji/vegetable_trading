@@ -7,83 +7,76 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 农家管理控制层 (UI Routing)
- * 作用：处理浏览器发起的 HTTP 请求，调用 Service，并将结果返回给 FreeMarker 模板引擎渲染。
- * * @RequestMapping("/farmers"): 统一设置该类下所有路由的 URL 前缀为 /farmers
- */
 @Controller
 @RequestMapping("/farmers")
 public class FarmerController {
 
     private final FarmerService farmerService;
+    public FarmerController(FarmerService farmerService) { this.farmerService = farmerService; }
 
-    public FarmerController(FarmerService farmerService) {
-        this.farmerService = farmerService;
-    }
-
-    /**
-     * 处理 GET 请求：展示农家列表及注册表单
-     */
+    // 1. 独立的一览页面 (带检索和分页，每页10条)
     @GetMapping
-    public String list(Model model) {
-        // 将数据库查出的列表塞入 Model，前端模板可以用 ${list} 取出
-        model.addAttribute("list", farmerService.getAllFarmers());
-
-        // 为了让前端的表单有一个绑定的初始空对象（如果不传，前端访问 form.name 会报错）
-        if (!model.containsAttribute("farmerForm")) {
-            model.addAttribute("farmerForm", new FarmerForm());
-        }
-        return "farmer/farmers"; // 渲染 src/main/resources/templates/farmer/farmers.ftlh 页面
-    }
-
-    /**
-     * 处理 POST 请求：提交表单并保存
-     * * @Validated: 触发 FarmerForm 内的 @NotBlank 等校验规则。
-     * BindingResult: 存放校验的错题本。
-     * 【致命陷阱】：BindingResult 参数必须、必须、必须紧跟在 @Validated 参数的后面！否则 Spring 会直接抛异常中断程序。
-     */
-    @PostMapping
-    public String add(@Validated @ModelAttribute("farmerForm") FarmerForm form,
-                      BindingResult bindingResult,
-                      Model model) {
-
-        // 1. 如果有输入校验不通过（例如名字没填）
-        if (bindingResult.hasErrors()) {
-            // 必须重新查询列表塞回 Model，否则带着红字错误回到当前页面时，下方的列表会因为没数据而报错消失。
-            model.addAttribute("list", farmerService.getAllFarmers());
-            return "farmer/farmers"; // 停留在当前页，前端利用 Spring 标签展示红字错误
-        }
-
-        // 2. 校验通过，移交 Service 执行保存
-        farmerService.registerFarmer(form);
-
-        // 3. PRG (Post-Redirect-Get) 模式：
-        // 保存成功后，强行让浏览器“重定向”到一个新的 GET 请求地址。
-        // 如果不这么做，用户按键盘 F5 刷新页面时，会弹出“确认重新提交表单”的提示，导致数据被重复保存两遍。
-        return "redirect:/farmers";
-    }
-
-    @GetMapping("/edit/{id}")
-    public String editForm(@PathVariable Integer id, Model model) {
-        Farmer f = farmerService.getAllFarmers().stream().filter(item -> item.getId().equals(id)).findFirst()
-                .orElseThrow(() -> new BusinessException("该数据不存在"));
-        FarmerForm form = new FarmerForm();
-        form.setId(f.getId()); form.setName(f.getName()); form.setPrefecture(f.getPrefecture());
-        form.setCity(f.getCity()); form.setAddressLine(f.getAddressLine()); form.setRank(f.getRank());
-        model.addAttribute("farmerForm", form);
-        model.addAttribute("list", farmerService.getAllFarmers());
+    public String list(Model model,
+                       @RequestParam(required = false) String searchName,
+                       @RequestParam(required = false) String searchRank,
+                       @RequestParam(defaultValue = "1") int page,
+                       @RequestParam(defaultValue = "id") String sort,
+                       @RequestParam(defaultValue = "desc") String dir) {
+        model.addAllAttributes(farmerService.getFarmersPage(searchName, searchRank, page, 10, sort, dir));
         return "farmer/farmers";
     }
 
+    // 2. 独立的新增表单页
+    @GetMapping("/add")
+    public String addForm(Model model) {
+        model.addAttribute("farmerForm", new FarmerForm());
+        return "farmer/farmer_form";
+    }
+
+    @PostMapping("/add")
+    public String add(@Validated @ModelAttribute("farmerForm") FarmerForm form, BindingResult result) {
+        if (result.hasErrors()) return "farmer/farmer_form";
+        farmerService.registerFarmer(form);
+        return "redirect:/farmers";
+    }
+
+    // 3. 独立的编辑表单页 (携带列表状态)
+    @GetMapping("/edit/{id}")
+    public String editForm(@PathVariable Integer id, Model model,
+                           @RequestParam(required = false) String searchName,
+                           @RequestParam(required = false) String searchRank,
+                           @RequestParam(defaultValue = "1") int page,
+                           @RequestParam(defaultValue = "id") String sort,
+                           @RequestParam(defaultValue = "desc") String dir) {
+        Farmer f = farmerService.getAllFarmers().stream().filter(item -> item.getId().equals(id)).findFirst()
+                .orElseThrow(() -> new BusinessException("数据不存在"));
+        FarmerForm form = new FarmerForm();
+        form.setId(f.getId()); form.setName(f.getName()); form.setPrefecture(f.getPrefecture());
+        form.setCity(f.getCity()); form.setAddressLine(f.getAddressLine()); form.setRank(f.getRank());
+
+        model.addAttribute("farmerForm", form);
+        // 缓存列表状态用于页面返回
+        model.addAttribute("page", page); model.addAttribute("sort", sort); model.addAttribute("dir", dir);
+        model.addAttribute("searchName", searchName); model.addAttribute("searchRank", searchRank);
+        return "farmer/farmer_form";
+    }
+
     @PostMapping("/edit/{id}")
-    public String update(@PathVariable Integer id, @Validated @ModelAttribute("farmerForm") FarmerForm form, BindingResult result, Model model) {
+    public String update(@PathVariable Integer id, @Validated @ModelAttribute("farmerForm") FarmerForm form, BindingResult result, Model model,
+                         @RequestParam(required = false) String searchName, @RequestParam(required = false) String searchRank,
+                         @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "id") String sort, @RequestParam(defaultValue = "desc") String dir) {
         if (result.hasErrors()) {
-            model.addAttribute("list", farmerService.getAllFarmers());
-            return "farmer/farmers";
+            model.addAttribute("page", page); model.addAttribute("sort", sort); model.addAttribute("dir", dir);
+            model.addAttribute("searchName", searchName); model.addAttribute("searchRank", searchRank);
+            return "farmer/farmer_form";
         }
         farmerService.updateFarmer(id, form);
-        return "redirect:/farmers";
+
+        // 动态构建包含 null 判断的重定向 URL
+        StringBuilder redirectUrl = new StringBuilder(String.format("redirect:/farmers?page=%d&sort=%s&dir=%s", page, sort, dir));
+        if (searchName != null && !searchName.isEmpty()) redirectUrl.append("&searchName=").append(searchName);
+        if (searchRank != null && !searchRank.isEmpty()) redirectUrl.append("&searchRank=").append(searchRank);
+        return redirectUrl.toString();
     }
 
     @PostMapping("/delete/{id}")

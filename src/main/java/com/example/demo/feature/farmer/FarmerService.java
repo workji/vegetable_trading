@@ -5,7 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 农家业务逻辑处理层 (Service Layer)
@@ -21,6 +25,32 @@ public class FarmerService {
     // 推荐使用构造器注入（Constructor Injection），而不是 @Autowired。这样便于编写单元测试。
     public FarmerService(FarmerMapper farmerMapper) {
         this.farmerMapper = farmerMapper;
+    }
+    private static final List<String> VALID_COLUMNS = Arrays.asList("id", "name", "prefecture", "rank");
+
+    // 追加：支持搜索的分页逻辑
+    public Map<String, Object> getFarmersPage(String searchName, String searchRank, int page, int size, String sortColumn, String sortDir) {
+        if (!VALID_COLUMNS.contains(sortColumn)) sortColumn = "id";
+        if (!"asc".equalsIgnoreCase(sortDir) && !"desc".equalsIgnoreCase(sortDir)) sortDir = "desc";
+        if (page < 1) page = 1;
+
+        int offset = (page - 1) * size;
+        List<Farmer> list = farmerMapper.findPage(searchName, searchRank, sortColumn, sortDir, offset, size);
+        long total = farmerMapper.countAll(searchName, searchRank);
+
+        int totalPages = (int) Math.ceil((double) total / size);
+        if (totalPages == 0) totalPages = 1;
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("currentPage", page);
+        result.put("totalPages", totalPages);
+        result.put("sortColumn", sortColumn);
+        result.put("sortDir", sortDir);
+        result.put("searchName", searchName); // 回传给前端保持检索框状态
+        result.put("searchRank", searchRank);
+        return result;
     }
 
     /**
